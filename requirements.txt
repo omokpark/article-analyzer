@@ -1,0 +1,5 @@
+flask>=3.0
+trafilatura>=1.6
+google-generativeai>=0.5
+python-dotenv>=1.0
+gunicorn>=21.0
