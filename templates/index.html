@@ -115,6 +115,55 @@
       word-break: break-word;
     }
 
+    .analysis {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+    }
+
+    .summary {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+
+    .points {
+      list-style: none;
+      margin-bottom: 16px;
+    }
+
+    .points li {
+      font-size: 0.9rem;
+      color: #444;
+      padding: 6px 0 6px 20px;
+      position: relative;
+      line-height: 1.6;
+    }
+
+    .points li::before {
+      content: "•";
+      position: absolute;
+      left: 6px;
+      color: #4f46e5;
+      font-weight: 700;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag {
+      font-size: 0.78rem;
+      color: #4f46e5;
+      background: #eef2ff;
+      border-radius: 20px;
+      padding: 3px 10px;
+    }
+
     /* 에러 */
     .error-msg {
       margin-top: 16px;
@@ -190,7 +239,11 @@
       <p class="result-title" id="resultTitle"></p>
       <p class="result-url" id="resultUrl"></p>
       <hr class="divider" />
-      <p class="result-body" id="resultBody"></p>
+      <div class="analysis" id="resultAnalysis">
+        <p class="summary" id="resultSummary"></p>
+        <ul class="points" id="resultPoints"></ul>
+        <div class="tags" id="resultTags"></div>
+      </div>
     </div>
   </div>
 
@@ -229,7 +282,27 @@
 
         document.getElementById("resultTitle").textContent = data.title || "(제목 없음)";
         document.getElementById("resultUrl").textContent = data.url;
-        document.getElementById("resultBody").textContent = data.body;
+
+        // 분석 결과
+        document.getElementById("resultSummary").textContent = data.summary || "";
+
+        const pointsList = document.getElementById("resultPoints");
+        pointsList.innerHTML = "";
+        (data.points || []).forEach(p => {
+          const li = document.createElement("li");
+          li.textContent = p;
+          pointsList.appendChild(li);
+        });
+
+        const tagsEl = document.getElementById("resultTags");
+        tagsEl.innerHTML = "";
+        (data.tags || []).forEach(t => {
+          const span = document.createElement("span");
+          span.className = "tag";
+          span.textContent = "#" + t;
+          tagsEl.appendChild(span);
+        });
+
         result.classList.add("visible");
       } catch (err) {
         errorMsg.textContent = err.message;
