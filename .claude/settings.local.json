@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:5000/)",
+      "Bash(pip install:*)",
+      "Bash(python -c \"from flask import Flask; print\\(''Flask OK''\\)\")",
+      "Bash(python app.py)",
+      "Bash(curl -s http://127.0.0.1:5000/)",
+      "Bash(curl -s -X POST http://127.0.0.1:5000/analyze -H 'Content-Type: application/json' -d '{\"url\": \"https://www.bbc.com/news/articles/c4gp3zz07ego\"}')",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('TITLE:', d.get\\('title',''\\)[:80]\\); print\\('BODY:', d.get\\('body',''\\)[:200]\\)\")",
+      "Bash(curl -s -X POST http://127.0.0.1:5000/analyze -H 'Content-Type: application/json' -d '{\"url\": \"https://en.wikipedia.org/wiki/Artificial_intelligence\"}')",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('TITLE:', d.get\\('title',''\\)[:80]\\); print\\('BODY:', d.get\\('body',''\\)[:300]\\)\")",
+      "Bash(python -c ':*)",
+      "Bash(python -c \"import sys; print\\(sys.stdin.read\\(\\)\\)\")",
+      "Bash(python3 -c \"import sys; data=sys.stdin.buffer.read\\(\\); print\\(data.decode\\('utf-8', errors='replace'\\)\\)\")",
+      "Bash(ls c:/Users/109776/article-analyzer/.env*)"
+    ]
+  }
+}

@@ -15,6 +15,7 @@ _client = genai.Client(api_key=_api_key)
 _PROMPT = """아래 기사를 읽고 다음 형식의 JSON으로만 응답하세요. 설명이나 마크다운 코드블록 없이 JSON만 출력하세요.
 
 {{
+  "category": "대분류/소분류",
   "summary": "한 문장 요약",
   "points": [
     "포인트 1",
@@ -22,9 +23,13 @@ _PROMPT = """아래 기사를 읽고 다음 형식의 JSON으로만 응답하세
     "포인트 3"
   ],
   "tags": ["태그1", "태그2", "태그3", "태그4", "태그5"]
-}}
+}
 
 작성 규칙:
+
+[category]
+- 콘텐츠의 형식과 주제를 조합하여 유연하게 생성 (예: 뉴스/경제, 블로그/IT, 트위터/정치, 수필/회고)
+- 나중에 맵핑 및 분류가 가능하도록 직관적인 단어 사용
 
 [summary]
 - 중립적 사실 나열 금지. 이 기사가 왜 중요한지, 무엇을 의미하는지 편집자 시각으로 해석
@@ -83,4 +88,6 @@ def analyze_article(title: str, body: str) -> dict:
                 raise RuntimeError("Gemini 서버 과부하 상태. 잠시 후 다시 시도해주세요.") from e
         except json.JSONDecodeError as e:
             raise RuntimeError("분석 결과 파싱 실패. 다시 시도해주세요.") from e
-    raise RuntimeError("Gemini 서버 과부하 상태. 잠시 후 다시 시도해주세요.") from last_error
+    if last_error:
+        raise RuntimeError("Gemini 서버 과부하 상태. 잠시 후 다시 시도해주세요.") from last_error
+    raise RuntimeError("Gemini 서버 과부하 상태. 잠시 후 다시 시도해주세요.")
