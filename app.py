@@ -1,8 +1,25 @@
+import os
 from flask import Flask, render_template, request, jsonify
 from extractor import extract_article
 from analyzer import analyze_article
 
 app = Flask(__name__)
+
+# 레이트 리미팅: 같은 IP에서 분당 10회 제한
+_request_counts: dict = {}  # {ip: [timestamp, ...]}
+
+
+def _is_rate_limited(ip: str) -> bool:
+    import time
+    now = time.time()
+    window = 60  # 초
+    limit = 10
+    timestamps = [t for t in _request_counts.get(ip, []) if now - t < window]
+    _request_counts[ip] = timestamps
+    if len(timestamps) >= limit:
+        return True
+    _request_counts[ip].append(now)
+    return False
 
 
 @app.route("/")
@@ -12,6 +29,10 @@ def index():
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
+    ip = request.remote_addr
+    if _is_rate_limited(ip):
+        return jsonify({"error": "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."}), 429
+
     data = request.get_json(silent=True)
     if not data or not data.get("url"):
         return jsonify({"error": "URL을 입력해주세요."}), 400
@@ -30,4 +51,5 @@ def analyze():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    debug = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
+    app.run(debug=debug)

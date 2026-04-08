@@ -5,7 +5,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+_api_key = os.environ.get("GEMINI_API_KEY")
+if not _api_key:
+    raise RuntimeError("GEMINI_API_KEY 환경 변수가 설정되지 않았습니다. .env 파일을 확인하세요.")
+
+genai.configure(api_key=_api_key)
 _model = genai.GenerativeModel("gemini-2.0-flash")
 
 _PROMPT = """아래 기사를 읽고 다음 형식의 JSON으로만 응답하세요. 설명이나 마크다운 코드블록 없이 JSON만 출력하세요.
