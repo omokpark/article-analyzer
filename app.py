@@ -37,18 +37,21 @@ def analyze():
     if not data or not data.get("url"):
         return jsonify({"error": "URL을 입력해주세요."}), 400
 
-    url = data["url"].strip()
-    result = extract_article(url)
-
-    if result is None:
-        return jsonify({"error": "본문을 추출할 수 없습니다. URL을 확인해주세요."}), 422
-
     try:
-        analysis = analyze_article(result["title"], result["body"])
-    except RuntimeError as e:
-        return jsonify({"error": str(e)}), 500
+        url = data["url"].strip()
+        result = extract_article(url)
 
-    return jsonify({**result, **analysis})
+        if result is None:
+            return jsonify({"error": "본문을 추출할 수 없습니다. URL을 확인해주세요."}), 422
+
+        analysis = analyze_article(result["title"], result["body"])
+        return jsonify({**result, **analysis})
+    except Exception as e:
+        import traceback
+        error_msg = f"{type(e).__name__}: {str(e)}"
+        print(f"Error occurred: {error_msg}")
+        traceback.print_exc()
+        return jsonify({"error": f"서버 오류가 발생했습니다: {error_msg}"}), 500
 
 
 if __name__ == "__main__":
