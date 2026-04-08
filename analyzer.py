@@ -54,7 +54,14 @@ def analyze_article(title: str, body: str) -> dict:
                 if text.startswith("json"):
                     text = text[4:]
                 text = text.strip()
-            return json.loads(text)
+            result = json.loads(text)
+            tags = result.get("tags", [])
+            if isinstance(tags, str):
+                tags = [t.strip().strip('"') for t in tags.split(",")]
+            elif isinstance(tags, list) and len(tags) == 1 and "," in tags[0]:
+                tags = [t.strip().strip('"') for t in tags[0].split(",")]
+            result["tags"] = [t for t in tags if t]
+            return result
         except genai.errors.ClientError as e:
             if e.code == 429:
                 raise RuntimeError("API 요청 한도 초과. 잠시 후 다시 시도해주세요.") from e
