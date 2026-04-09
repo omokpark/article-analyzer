@@ -99,12 +99,27 @@ def analyze_article(title: str, body: str) -> dict:
                 contents=prompt,
             )
             text = response.text.strip()
-            if text.startswith("```"):
-                text = text.split("```", 2)[1]
-                if text.startswith("json"):
-                    text = text[4:]
-                text = text.strip()
-            result = json.loads(text)
+            # 1단계: 코드블록 제거
+            if "```" in text:
+                parts = text.split("```")
+                for part in parts:
+                    if part.startswith("json"):
+                        text = part[4:].strip()
+                        break
+                    elif part.strip().startswith("{"):
+                        text = part.strip()
+                        break
+            # 2단계: 중괄호로 감싸진 JSON 블록 추출
+            import re
+            match = re.search(r'\{[\s\S]*\}', text)
+            if match:
+                text = match.group(0)
+            try:
+                result = json.loads(text)
+            except json.JSONDecodeError:
+                print(f"JSON parse failed for {model_name}, raw: {text[:200]}")
+                model_errors.append(f"{model_name}(JSONDecodeError)")
+                continue
             tags = result.get("tags", [])
             if isinstance(tags, str):
                 tags = [t.strip().strip('"') for t in tags.split(",")]
@@ -117,8 +132,6 @@ def analyze_article(title: str, body: str) -> dict:
                 model_errors.append(f"{model_name}({e.code})")
                 continue
             raise RuntimeError(f"Gemini API 오류: {e}") from e
-        except json.JSONDecodeError as e:
-            raise RuntimeError("분석 결과 파싱 실패. 다시 시도해주세요.") from e
         except Exception as e:
             model_errors.append(f"{model_name}({type(e).__name__})")
             continue
