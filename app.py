@@ -39,6 +39,13 @@ def analyze():
 
     try:
         url = data["url"].strip()
+
+        # 네이버 블로그는 iframe 구조라 모바일 URL로 변환해야 본문 추출 가능
+        if "blog.naver.com" in url and "m.blog.naver.com" not in url:
+            url = url.replace("https://blog.naver.com", "https://m.blog.naver.com")
+            url = url.replace("http://blog.naver.com", "https://m.blog.naver.com")
+            print(f"[app] 네이버 블로그 → 모바일 URL 변환: {url}")
+
         result = extract_article(url)
 
         if result is None:
