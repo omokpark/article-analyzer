@@ -1,7 +1,6 @@
 import os
 import json
 import re
-import time
 from google import genai
 from dotenv import load_dotenv
 
@@ -13,16 +12,39 @@ if not _api_key:
 
 _client = genai.Client(api_key=_api_key)
 
-# 사용자 계정에서 실제 지원되는 모델 목록
-# (gemini-1.5 계열은 404, gemini-2.0 계열은 한도 초과로 확인됨)
-_MODELS = [
-    "gemini-3.1-flash-lite",  # 대시보드 확인: RPD 0/500
-    "gemini-3-flash",          # 대시보드 확인: RPD 0/20
-    "gemini-3.1-pro",
-    "gemini-2.5-flash-lite",
-    "gemini-2.5-flash",
-    "gemini-2.0-flash-lite",   # 429 시 마지막 시도
-]
+# ── 서버 시작 시 한 번만 유효한 모델 목록을 자동 검색 ──────────────────
+def _discover_models() -> list:
+    """
+    API에서 실제 사용 가능한 모델 목록을 조회합니다.
+    실패 시 알려진 모델 목록을 반환합니다.
+    """
+    try:
+        all_models = list(_client.models.list())
+        names = []
+        for m in all_models:
+            name = getattr(m, 'name', '') or ''
+            n = name.lower()
+            # 텍스트 생성 모델만 (임베딩, 이미지 모델 제외)
+            if any(k in n for k in ['flash', 'pro']) and not any(k in n for k in ['embed', 'vision', 'imagen']):
+                names.append(name)
+        print(f"[analyzer] Discovered {len(names)} models: {names}")
+        # lite/flash 우선, pro 나중
+        names.sort(key=lambda x: (0 if 'lite' in x else 1 if 'flash' in x else 2))
+        return names
+    except Exception as e:
+        print(f"[analyzer] Model discovery failed: {e}")
+        # 폴백: 사용자 대시보드 기반 추정 목록
+        return [
+            "gemini-3.1-flash-lite",
+            "gemini-3-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-2.5-flash",
+            "gemini-2.0-flash-lite",
+            "gemini-2.0-flash",
+        ]
+
+_MODELS = _discover_models()
+# ────────────────────────────────────────────────────────────────────────────
 
 _PROMPT = """아래 기사를 분석하여 기사의 깊이(심도)에 따라 적절한 JSON 형식으로 응답하세요.
 설명이나 마크다운 코드블록 없이 JSON만 출력하세요.
@@ -63,7 +85,6 @@ _PROMPT = """아래 기사를 분석하여 기사의 깊이(심도)에 따라 �
 def _parse_json(text: str) -> dict:
     """응답 텍스트에서 JSON을 최대한 안전하게 추출합니다."""
     text = text.strip()
-    # 코드블록 제거
     if "```" in text:
         parts = text.split("```")
         for part in parts:
@@ -71,7 +92,6 @@ def _parse_json(text: str) -> dict:
             if candidate.startswith("{"):
                 text = candidate
                 break
-    # 정규식으로 { } 블록 추출
     match = re.search(r'\{[\s\S]*\}', text)
     if match:
         text = match.group(0)
@@ -84,14 +104,13 @@ def analyze_article(title: str, body: str) -> dict:
 
     for model_name in _MODELS:
         try:
-            print(f"Trying model: {model_name}")
+            print(f"[analyzer] Trying: {model_name}")
             response = _client.models.generate_content(
                 model=model_name,
                 contents=prompt,
             )
             result = _parse_json(response.text)
 
-            # tags 정규화
             tags = result.get("tags", [])
             if isinstance(tags, str):
                 tags = [t.strip().strip('"') for t in tags.split(",")]
@@ -99,24 +118,24 @@ def analyze_article(title: str, body: str) -> dict:
                 tags = [t.strip().strip('"') for t in tags[0].split(",")]
             result["tags"] = [t for t in tags if t]
 
-            print(f"Success with model: {model_name}")
+            print(f"[analyzer] Success with: {model_name}")
             return result
 
         except genai.errors.ClientError as e:
             code = getattr(e, 'code', 0)
-            print(f"ClientError {code} for {model_name}: {e}")
+            print(f"[analyzer] ClientError {code} for {model_name}")
             if code in [429, 404, 400]:
                 model_errors.append(f"{model_name}(HTTP {code})")
                 continue
             raise RuntimeError(f"Gemini API 오류: {e}") from e
 
         except json.JSONDecodeError as e:
-            print(f"JSON parse error for {model_name}: {e}")
+            print(f"[analyzer] JSON parse error for {model_name}")
             model_errors.append(f"{model_name}(JSON오류)")
             continue
 
         except Exception as e:
-            print(f"Unexpected error for {model_name}: {type(e).__name__}: {e}")
+            print(f"[analyzer] Error for {model_name}: {type(e).__name__}: {e}")
             model_errors.append(f"{model_name}({type(e).__name__})")
             continue
 
