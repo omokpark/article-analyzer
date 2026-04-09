@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import time
 from google import genai
 from dotenv import load_dotenv
@@ -11,6 +12,15 @@ if not _api_key:
     raise RuntimeError("GEMINI_API_KEY 환경 변수가 설정되지 않았습니다. .env 파일을 확인하세요.")
 
 _client = genai.Client(api_key=_api_key)
+
+# 구글 Gemini API에서 실제로 지원하는 안정적인 모델명 목록
+# 한도(RPD)가 많은 순서로 정렬
+_MODELS = [
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+]
 
 _PROMPT = """아래 기사를 분석하여 기사의 깊이(심도)에 따라 적절한 JSON 형식으로 응답하세요.
 설명이나 마크다운 코드블록 없이 JSON만 출력하세요.
@@ -48,92 +58,65 @@ _PROMPT = """아래 기사를 분석하여 기사의 깊이(심도)에 따라 �
 """
 
 
-def _get_available_models() -> list:
-    """API에서 실제 사용 가능한 모델 목록을 조회합니다."""
-    try:
-        all_models = list(_client.models.list())
-        print(f"Total models found: {len(all_models)}")
-        # 모델 이름만 추출 (flash, pro 계열 텍스트 모델 중심)
-        names = []
-        for m in all_models:
-            name = getattr(m, 'name', '') or ''
-            low = name.lower()
-            if ('flash' in low or 'pro' in low) and 'embed' not in low and 'vision' not in low:
-                names.append(name)
-        print(f"Filtered models: {names}")
-        return names
-    except Exception as e:
-        print(f"Model discovery error: {e}")
-        # 발견 실패 시 구글에서 가장 안정적으로 지원되는 모델명 사용
-        return ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"]
+def _parse_json(text: str) -> dict:
+    """응답 텍스트에서 JSON을 최대한 안전하게 추출합니다."""
+    text = text.strip()
+    # 코드블록 제거
+    if "```" in text:
+        parts = text.split("```")
+        for part in parts:
+            candidate = part.lstrip("json").strip()
+            if candidate.startswith("{"):
+                text = candidate
+                break
+    # 정규식으로 { } 블록 추출
+    match = re.search(r'\{[\s\S]*\}', text)
+    if match:
+        text = match.group(0)
+    return json.loads(text)
 
 
 def analyze_article(title: str, body: str) -> dict:
     prompt = _PROMPT.format(title=title, body=body[:4000])
-
-    # 실제 API 모델 목록 조회
-    models = _get_available_models()
-
-    # 우선순위: lite/flash 계열 (한도 여유), pro 계열 (성능)
-    def priority(name: str) -> int:
-        n = name.lower()
-        if 'lite' in n and 'flash' in n:
-            return 0
-        if 'flash' in n:
-            return 1
-        if 'pro' in n:
-            return 2
-        return 3
-
-    models = sorted(models, key=priority)
-
-    if not models:
-        raise RuntimeError("사용 가능한 모델이 없습니다. API 키 설정을 확인해주세요.")
-
     model_errors = []
-    for model_name in models:
+
+    for model_name in _MODELS:
         try:
-            print(f"Trying: {model_name}")
+            print(f"Trying model: {model_name}")
             response = _client.models.generate_content(
                 model=model_name,
                 contents=prompt,
             )
-            text = response.text.strip()
-            # 1단계: 코드블록 제거
-            if "```" in text:
-                parts = text.split("```")
-                for part in parts:
-                    if part.startswith("json"):
-                        text = part[4:].strip()
-                        break
-                    elif part.strip().startswith("{"):
-                        text = part.strip()
-                        break
-            # 2단계: 중괄호로 감싸진 JSON 블록 추출
-            import re
-            match = re.search(r'\{[\s\S]*\}', text)
-            if match:
-                text = match.group(0)
-            try:
-                result = json.loads(text)
-            except json.JSONDecodeError:
-                print(f"JSON parse failed for {model_name}, raw: {text[:200]}")
-                model_errors.append(f"{model_name}(JSONDecodeError)")
-                continue
+            result = _parse_json(response.text)
+
+            # tags 정규화
             tags = result.get("tags", [])
             if isinstance(tags, str):
                 tags = [t.strip().strip('"') for t in tags.split(",")]
             elif isinstance(tags, list) and len(tags) == 1 and "," in tags[0]:
                 tags = [t.strip().strip('"') for t in tags[0].split(",")]
             result["tags"] = [t for t in tags if t]
+
+            print(f"Success with model: {model_name}")
             return result
+
         except genai.errors.ClientError as e:
-            if e.code in [429, 404]:
-                model_errors.append(f"{model_name}({e.code})")
+            code = getattr(e, 'code', 0)
+            print(f"ClientError {code} for {model_name}: {e}")
+            if code in [429, 404, 400]:
+                model_errors.append(f"{model_name}(HTTP {code})")
                 continue
             raise RuntimeError(f"Gemini API 오류: {e}") from e
+
+        except json.JSONDecodeError as e:
+            print(f"JSON parse error for {model_name}: {e}")
+            model_errors.append(f"{model_name}(JSON오류)")
+            continue
+
         except Exception as e:
+            print(f"Unexpected error for {model_name}: {type(e).__name__}: {e}")
             model_errors.append(f"{model_name}({type(e).__name__})")
             continue
 
-    raise RuntimeError(f"모든 모델 사용 불가: {', '.join(model_errors)}")
+    error_summary = ", ".join(model_errors)
+    raise RuntimeError(f"모든 모델 호출 실패 ({error_summary}). API 한도를 확인하거나 잠시 후 다시 시도해주세요.")
