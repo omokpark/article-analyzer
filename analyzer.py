@@ -56,7 +56,7 @@ def analyze_article(title: str, body: str) -> dict:
             time.sleep(3 * attempt)
         try:
             response = _client.models.generate_content(
-                model="gemini-1.5-flash-8b",
+                model="gemini-2.5-flash-lite",
                 contents=prompt,
             )
             text = response.text.strip()
