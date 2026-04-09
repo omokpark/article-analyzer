@@ -225,11 +225,21 @@
       background: #fff;
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 20px;
+      padding: 40px 32px;
       margin-bottom: 32px;
       overflow-x: auto;
+      width: 100%;
+      min-height: 320px;
       display: flex;
+      align-items: center;
       justify-content: center;
+    }
+
+    .mermaid-container svg {
+      width: 100% !important;
+      max-width: 100% !important;
+      height: auto !important;
+      min-height: 280px;
     }
 
     .detailed-grid {
