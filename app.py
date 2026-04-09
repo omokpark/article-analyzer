@@ -54,6 +54,18 @@ def analyze():
         return jsonify({"error": f"서버 오류가 발생했습니다: {error_msg}"}), 500
 
 
+@app.route("/models")
+def list_models():
+    """사용 가능한 모델 목록을 반환하는 진단 엔드포인트"""
+    try:
+        from analyzer import _client
+        models = list(_client.models.list())
+        names = [getattr(m, 'name', str(m)) for m in models]
+        return jsonify({"models": names, "count": len(names)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     debug = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
     app.run(debug=debug)
