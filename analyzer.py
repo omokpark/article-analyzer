@@ -13,13 +13,15 @@ if not _api_key:
 
 _client = genai.Client(api_key=_api_key)
 
-# 구글 Gemini API에서 실제로 지원하는 안정적인 모델명 목록
-# 한도(RPD)가 많은 순서로 정렬
+# 사용자 계정에서 실제 지원되는 모델 목록
+# (gemini-1.5 계열은 404, gemini-2.0 계열은 한도 초과로 확인됨)
 _MODELS = [
-    "gemini-2.0-flash-lite",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
+    "gemini-3.1-flash-lite",  # 대시보드 확인: RPD 0/500
+    "gemini-3-flash",          # 대시보드 확인: RPD 0/20
+    "gemini-3.1-pro",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash-lite",   # 429 시 마지막 시도
 ]
 
 _PROMPT = """아래 기사를 분석하여 기사의 깊이(심도)에 따라 적절한 JSON 형식으로 응답하세요.
