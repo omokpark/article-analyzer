@@ -390,7 +390,16 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url }),
         });
-        const data = await res.json();
+
+        let data;
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          data = await res.json();
+        } else {
+          // HTML 에러 페이지 등을 받은 경우
+          throw new Error("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+        }
+
         if (!res.ok) throw new Error(data.error || "실패");
 
         renderResult(data);
