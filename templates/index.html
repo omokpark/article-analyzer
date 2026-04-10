@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Article Analyzer</title>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.14.0/dist/mermaid.min.js" integrity="sha384-1CMXl090wj8Dd6YfnzSQUOgWbE6suWCaenYG7pox5AX7apTpY3PmJMeS2oPql4Gk" crossorigin="anonymous"></script>
   <style>
     :root {
       --primary: #4f46e5;
@@ -454,24 +454,39 @@
       if (data.depth === 'deep') {
         deepSection.style.display = "block";
         
-        // Mermaid
+        // Mermaid — textContent로 삽입해 XSS 방지
         const container = document.getElementById("mermaidContainer");
-        container.innerHTML = `<div class="mermaid">${data.mermaid}</div>`;
+        const mermaidDiv = document.createElement("div");
+        mermaidDiv.className = "mermaid";
+        mermaidDiv.textContent = data.mermaid;
+        container.innerHTML = "";
+        container.appendChild(mermaidDiv);
         mermaid.init(undefined, container.querySelectorAll(".mermaid"));
 
-        // Detailed Grid
+        // Detailed Grid — DOM API로 삽입해 XSS 방지
         const grid = document.getElementById("detailedGrid");
         grid.innerHTML = "";
         (data.detailed_analysis || []).forEach(item => {
           const card = document.createElement("div");
           card.className = "detail-card";
-          card.innerHTML = `<h4>${item.section}</h4><p>${item.content}</p>`;
+          const h4 = document.createElement("h4");
+          h4.textContent = item.section;
+          const p = document.createElement("p");
+          p.textContent = item.content;
+          card.appendChild(h4);
+          card.appendChild(p);
           grid.appendChild(card);
         });
 
-        // Insight
+        // Insight — DOM API로 삽입해 XSS 방지
         const insightBox = document.getElementById("insightBox");
-        insightBox.innerHTML = `<h4>💡 Expert Insight</h4><p>${data.insight}</p>`;
+        insightBox.innerHTML = "";
+        const ih4 = document.createElement("h4");
+        ih4.textContent = "💡 Expert Insight";
+        const ip = document.createElement("p");
+        ip.textContent = data.insight;
+        insightBox.appendChild(ih4);
+        insightBox.appendChild(ip);
       } else {
         deepSection.style.display = "none";
       }
