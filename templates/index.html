@@ -288,23 +288,6 @@
       border-radius: 100px;
     }
 
-    /* Save button */
-    .save-btn {
-      margin-top: 20px;
-      padding: 12px 20px;
-      background: none;
-      border: 2px solid var(--primary);
-      color: var(--primary);
-      border-radius: 12px;
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      width: 100%;
-    }
-
-    .save-btn:hover { background: var(--primary); color: #fff; }
-    .save-btn:disabled { border-color: #94a3b8; color: #94a3b8; cursor: not-allowed; background: none; }
 
     .spinner {
       display: none;
@@ -559,10 +542,6 @@
 
         <div class="tag-container" id="resultTags"></div>
 
-        <!-- 저장 버튼 (분석 완료 후 표시) -->
-        <button class="save-btn" id="saveBtn" style="display:none;" onclick="saveToLibrary()">
-          📚 라이브러리에 저장
-        </button>
       </div>
     </div>
   </div>
@@ -574,7 +553,7 @@
       <div class="graph-area" id="graphArea">
         <div class="graph-empty" id="graphEmpty">
           <span style="font-size:2.5rem;">📭</span>
-          <p>저장된 아티클이 없습니다.<br>분석 후 라이브러리에 저장해보세요.</p>
+          <p>저장된 아티클이 없습니다.<br>URL을 분석하면 자동으로 저장됩니다.</p>
         </div>
         <div class="graph-tooltip" id="graphTooltip"></div>
       </div>
@@ -631,11 +610,6 @@
       spinner.classList.add("visible");
       submitBtn.disabled = true;
 
-      // 저장 버튼 초기화
-      const saveBtn = document.getElementById("saveBtn");
-      saveBtn.style.display = "none";
-      saveBtn.disabled = false;
-      saveBtn.textContent = "📚 라이브러리에 저장";
       _currentData = null;
 
       try {
@@ -654,7 +628,7 @@
         _currentData = data;
         renderResult(data);
         result.classList.add("visible");
-        saveBtn.style.display = "block";
+        saveToLibrary();
       } catch (err) {
         alert(err.message);
       } finally {
@@ -741,14 +715,11 @@
       });
     });
 
-    // ── 라이브러리 저장 ────────────────────────────────────────────────────
+    // ── 라이브러리 자동 저장 ───────────────────────────────────────────────
     async function saveToLibrary() {
       if (!_currentData) return;
-      const btn = document.getElementById("saveBtn");
-      btn.disabled = true;
-      btn.textContent = "저장 중...";
       try {
-        const res = await fetch("/articles/save", {
+        await fetch("/articles/save", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -760,12 +731,9 @@
             tags:     _currentData.tags,
           }),
         });
-        if (!res.ok) throw new Error();
-        btn.textContent = "✓ 저장됨";
       } catch {
-        btn.disabled = false;
-        btn.textContent = "📚 라이브러리에 저장";
-        alert("저장 중 오류가 발생했습니다.");
+        // 저장 실패는 백그라운드에서 조용히 처리
+        console.warn("라이브러리 자동 저장 실패");
       }
     }
 
