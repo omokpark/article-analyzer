@@ -3,12 +3,15 @@ from flask import Flask, render_template, request, jsonify
 from werkzeug.middleware.proxy_fix import ProxyFix
 from extractor import extract_article
 from analyzer import analyze_article
+from db import init_db, save_article, get_all_articles, delete_article, compute_relations
 
 app = Flask(__name__)
 
 # Heroku 등 리버스 프록시 환경에서 실제 클라이언트 IP를 가져오기 위해 ProxyFix 적용
-# x_for=1: X-Forwarded-For 헤더에서 1단계 프록시 신뢰
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+# DB 초기화 (앱 시작 시 테이블 생성)
+init_db()
 
 # 레이트 리미팅: 같은 IP에서 분당 10회 제한
 _request_counts: dict = {}  # {ip: [timestamp, ...]}
@@ -90,6 +93,54 @@ def analyze():
         print(f"Error: {type(e).__name__}: {e}")
         traceback.print_exc()
         return jsonify({"error": "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}), 500
+
+
+@app.route("/articles/save", methods=["POST"])
+def save():
+    """분석 결과를 공유 라이브러리에 저장"""
+    data = request.get_json(silent=True)
+    if not data or not data.get("url") or not data.get("title"):
+        return jsonify({"error": "url과 title은 필수입니다."}), 400
+
+    try:
+        article_id = save_article(
+            url=data["url"],
+            title=data["title"],
+            summary=data.get("summary", ""),
+            category=data.get("category", ""),
+            depth=data.get("depth", "simple"),
+            tags=data.get("tags", []),
+        )
+        return jsonify({"id": article_id})
+    except Exception as e:
+        import traceback
+        print(f"Error saving article: {type(e).__name__}: {e}")
+        traceback.print_exc()
+        return jsonify({"error": "저장 중 오류가 발생했습니다."}), 500
+
+
+@app.route("/library")
+def library():
+    """공유 라이브러리: 아티클 노드와 관계 엣지 반환"""
+    articles = get_all_articles()
+    edges = compute_relations(articles)
+    # body 제외하고 반환 (그래프에는 불필요)
+    nodes = [
+        {k: v for k, v in a.items() if k != "body"}
+        for a in articles
+    ]
+    return jsonify({"nodes": nodes, "edges": edges})
+
+
+@app.route("/articles/<int:article_id>", methods=["DELETE"])
+def remove_article(article_id: int):
+    """아티클 삭제"""
+    try:
+        delete_article(article_id)
+        return "", 204
+    except Exception as e:
+        print(f"Error deleting article {article_id}: {e}")
+        return jsonify({"error": "삭제 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/models")
